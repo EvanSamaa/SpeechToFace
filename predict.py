@@ -12,6 +12,8 @@ import pyrender
 from models import FaceDiff, FaceDiffBeat, FaceDiffDamm
 from transformers import Wav2Vec2Processor
 import time
+# import os
+os.environ['PYOPENGL_PLATFORM'] = 'egl'
 
 from utils import *
 
@@ -144,12 +146,12 @@ def render(args):
 
     light = pyrender.DirectionalLight(color=[1.0, 1.0, 1.0], intensity=10.0)
 
-    r = pyrender.OffscreenRenderer(640, 480)
+    r = pyrender.OffscreenRenderer(1280, 960)
 
     print("rendering the predicted sequence: ", test_name)
     video_woA_path = video_woA_folder + out_file_name + '.mp4'
     video_wA_path = video_wA_folder + out_file_name + '.mp4'
-    video = cv2.VideoWriter(video_woA_path, fourcc, fps, (640, 480))
+    video = cv2.VideoWriter(video_woA_path, fourcc, fps, (1280, 960))
 
     ref_mesh = trimesh.load_mesh(template_file, process=False)
     seq = np.load(predicted_vertices_path)
@@ -178,7 +180,6 @@ def render(args):
     ffmpeg.concat(input_video, input_audio, v=1, a=1).output(video_wA_path).run()
     del video, seq, ref_mesh
     gc.collect()
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -221,7 +222,6 @@ def main():
     # like Maya, Blender, UE
     if args.dataset in ["BIWI", "multiface", "vocaset"]:
         render(args)
-
 
 if __name__ == "__main__":
     main()

@@ -71,7 +71,7 @@ class SpacedDiffusion(GaussianDiffusion):
     """
 
     def __init__(self, use_timesteps, **kwargs):
-        self.use_timesteps = set(use_timesteps)
+        self.use_timesteps = set(use_timesteps) # just custome
         self.timestep_map = []
         self.original_num_steps = len(kwargs["betas"])
 
@@ -125,5 +125,5 @@ class _WrappedModel:
         map_tensor = th.tensor(self.timestep_map, device=ts.device, dtype=ts.dtype)
         new_ts = map_tensor[ts]
         if self.rescale_timesteps:
-            new_ts = new_ts.float() * (1000.0 / self.original_num_steps)
+            new_ts = new_ts.float() * (1000.0 / self.original_num_steps) # doesn't the original code already use it?
         return self.model(x, new_ts, **kwargs)

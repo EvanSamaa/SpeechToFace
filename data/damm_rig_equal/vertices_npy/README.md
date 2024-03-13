@@ -1,1 +1,0 @@
-This folder will contain the rig control data for all the sequences in `.npy` format. 

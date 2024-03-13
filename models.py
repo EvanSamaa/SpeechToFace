@@ -56,10 +56,10 @@ def prob_mask_like(shape, prob, device):
 
 
 class FaceDiffDamm(nn.Module):
-    def __init__(self, args):
+    def __init__(self, config):
         super(FaceDiffDamm, self).__init__()
-        self.num_blendshapes = args.vertice_dim
-        self.latent_dim = args.feature_dim
+        self.num_blendshapes = config["vertice_dim"]
+        self.latent_dim = config["feature_dim"]
         self.num_layers = 4
         self.dropout = 0.1
 
@@ -150,7 +150,7 @@ class TimestepEmbedder(nn.Module):
 class FaceDiffBeat(nn.Module):
     def __init__(
             self,
-            args,
+            config,
             vertice_dim: int,
             latent_dim: int = 256,
             cond_feature_dim: int = 1536,
@@ -161,15 +161,15 @@ class FaceDiffBeat(nn.Module):
     ) -> None:
 
         super().__init__()
-        self.i_fps = args.input_fps # audio fps (input to the network)
-        self.o_fps = args.output_fps # 4D Scan fps (output or target)
-        self.one_hot_timesteps = np.eye(args.diff_steps)
+        self.i_fps = config["input_fps"] # audio fps (input to the network)
+        self.o_fps = config["output_fps"] # 4D Scan fps (output or target)
+        self.one_hot_timesteps = np.eye(config["diff_steps"])
 
         # Audio Encoder
         self.audio_encoder = HubertModel.from_pretrained("facebook/hubert-base-ls960")
         self.audio_dim = self.audio_encoder.encoder.config.hidden_size
         self.audio_encoder.feature_extractor._freeze_parameters()
-        self.device = args.device
+        self.device = config["device"]
 
         frozen_layers = [0,1]
 
@@ -202,26 +202,24 @@ class FaceDiffBeat(nn.Module):
     def forward(
             self, x: Tensor,  times: Tensor, cond_embed: Tensor, one_hot=None, template=None
     ):
-        batch_size, device = x.shape[0], x.device
+        batch_size, device = x.shape[0], x.device # X is the noise
         times = torch.FloatTensor(self.one_hot_timesteps[times])
         times = times.to(device=device)
-
         hidden_states = cond_embed
-        hidden_states = self.audio_encoder(hidden_states).last_hidden_state
-        hidden_states, x, frame_num = adjust_input_representation(hidden_states, x, self.i_fps, self.o_fps)
-        cond_embed = hidden_states[:, :frame_num]
-        x = x[:, :frame_num]
+        hidden_states = self.audio_encoder(hidden_states).last_hidden_state # hidden_state is the audio embedding
+        hidden_states, x, frame_num = adjust_input_representation(hidden_states, x, self.i_fps, self.o_fps) # re-sample frame rate to match outout fps
+        cond_embed = hidden_states[:, :frame_num] # the audio embedding
+        x = x[:, :frame_num] # also the embedding this make sures the two are the same shape
 
         cond_tokens = cond_embed
-
         # create the diffusion timestep embedding
-        t_tokens = self.time_mlp(times)
+        t_tokens = self.time_mlp(times) # this indicate current diffusion stamp
         t_tokens = t_tokens.repeat(frame_num, 1, 1)
         t_tokens = t_tokens.permute(1, 0, 2)
 
         # full conditioning tokens
-        full_cond_tokens = torch.cat([cond_tokens, x, t_tokens], dim=-1)
-        full_cond_tokens = self.norm_cond(full_cond_tokens)
+        full_cond_tokens = torch.cat([cond_tokens, x, t_tokens], dim=-1) # just concat audio, noise and time??? that's wild...... I guess they are all the same shape
+        full_cond_tokens = self.norm_cond(full_cond_tokens) # normalize each index 
 
         output, _ = self.gru(full_cond_tokens)
         output = self.final_layer(output)
@@ -232,7 +230,7 @@ class FaceDiffBeat(nn.Module):
 class FaceDiff(nn.Module):
     def __init__(
             self,
-            args,
+            config,
             vertice_dim: int,
             latent_dim: int = 512,
             cond_feature_dim: int = 1536,
@@ -244,15 +242,15 @@ class FaceDiff(nn.Module):
     ) -> None:
 
         super().__init__()
-        self.i_fps = args.input_fps # audio fps (input to the network)
-        self.o_fps = args.output_fps # 4D Scan fps (output or target)
-        self.one_hot_timesteps = np.eye(args.diff_steps)
+        self.i_fps = config["input_fps"] # audio fps (input to the network)
+        self.o_fps = config["output_fps"] # 4D Scan fps (output or target)
+        self.one_hot_timesteps = np.eye(config["diff_steps"])
 
         # Audio Encoder
         self.audio_encoder = HubertModel.from_pretrained("facebook/hubert-base-ls960")
         self.audio_dim = self.audio_encoder.encoder.config.hidden_size
         self.audio_encoder.feature_extractor._freeze_parameters()
-        self.device = args.device
+        self.device = config["device"]
 
         frozen_layers = [0,1]
 
@@ -290,7 +288,7 @@ class FaceDiff(nn.Module):
         nn.init.constant_(self.final_layer.bias, 0)
 
         # Subject embedding, S
-        self.obj_vector = nn.Linear(len(args.train_subjects.split()), latent_dim, bias=False)
+        self.obj_vector = nn.Linear(len(config["train_subjects"].split()), latent_dim, bias=False)
 
     def forward(
             self, x: Tensor,  times: Tensor, cond_embed: Tensor, template, one_hot,

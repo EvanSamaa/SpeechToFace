@@ -100,7 +100,6 @@ class LossType(enum.Enum):
     def is_vb(self):
         return self == LossType.KL or self == LossType.RESCALED_KL
 
-
 class GaussianDiffusion:
     """
     Utilities for training and sampling diffusion models.
@@ -167,9 +166,9 @@ class GaussianDiffusion:
         self.num_timesteps = int(betas.shape[0])
 
         alphas = 1.0 - betas
-        self.alphas_cumprod = np.cumprod(alphas, axis=0)
-        self.alphas_cumprod_prev = np.append(1.0, self.alphas_cumprod[:-1])
-        self.alphas_cumprod_next = np.append(self.alphas_cumprod[1:], 0.0)
+        self.alphas_cumprod = np.cumprod(alphas, axis=0)                        # cumulative projuct, a[0] == 1
+        self.alphas_cumprod_prev = np.append(1.0, self.alphas_cumprod[:-1])     # cumulative projuct but shifted, a[0] == a[1] == 1
+        self.alphas_cumprod_next = np.append(self.alphas_cumprod[1:], 0.0)      # cumulative projuct but shifted, a[-1] == a[-2] == 0
         assert self.alphas_cumprod_prev.shape == (self.num_timesteps,)
 
         # calculations for diffusion q(x_t | x_{t-1}) and others
@@ -235,13 +234,14 @@ class GaussianDiffusion:
         """
         Diffuse the dataset for a given number of diffusion steps.
 
-        In other words, sample from q(x_t | x_0).
+        In other words, sample from q(x_t | x_0)
 
         :param x_start: the initial dataset batch.
         :param t: the number of diffusion steps (minus 1). Here, 0 means one step.
         :param noise: if specified, the split-out normal noise.
         :return: A noisy version of x_start.
         """
+        # samples 0 to t in one step. Very efficient.
         if noise is None:
             noise = th.randn_like(x_start)
         assert noise.shape == x_start.shape
@@ -258,6 +258,8 @@ class GaussianDiffusion:
             q(x_{t-1} | x_t, x_0)
 
         """
+        # this is also somewhat of a gaussian, it can be marginalized using bayes rule. 
+        # 
         assert x_start.shape == x_t.shape
         posterior_mean = (
             _extract_into_tensor(self.posterior_mean_coef1, t, x_t.shape) * x_start
@@ -633,7 +635,6 @@ class GaussianDiffusion:
 
         # with open('scaler_192.pkl', 'rb') as f:
         #     RIG_SCALER = pickle.load(f)
-
         for i, sample in enumerate(self.p_sample_loop_progressive(
             model,
             shape,
@@ -698,7 +699,7 @@ class GaussianDiffusion:
 
         if skip_timesteps and init_image is None:
             init_image = th.zeros_like(img)
-
+        # iterate from t = 1000 to 0
         indices = list(range(self.num_timesteps - skip_timesteps))[::-1]
 
         if init_image is not None:
@@ -1248,7 +1249,6 @@ class GaussianDiffusion:
         x_t = self.q_sample(x_start, t, noise=noise)
 
         terms = {}
-
         if self.loss_type == LossType.MSE or self.loss_type == LossType.RESCALED_MSE:
             model_output = model(x_t, self._scale_timesteps(t), **model_kwargs)
 
@@ -1281,7 +1281,6 @@ class GaussianDiffusion:
                 ModelMeanType.START_X: x_start,
                 ModelMeanType.EPSILON: noise,
             }[self.model_mean_type]
-
             if target.shape != model_output.shape:
                 min_length = min(target.shape[1], model_output.shape[1])
                 model_output = model_output[:, :min_length]
@@ -1496,7 +1495,7 @@ def _extract_into_tensor(arr, timesteps, broadcast_shape):
                             dimension equal to the length of timesteps.
     :return: a tensor of shape [batch_size, 1, ...] where the shape has K dims.
     """
-    res = th.from_numpy(arr).to(device=timesteps.device)[timesteps].float()
+    res = th.from_numpy(arr).to(device=timesteps.device)[timesteps].float() # get the t-th element from the array
     while len(res.shape) < len(broadcast_shape):
         res = res[..., None]
     return res.expand(broadcast_shape)

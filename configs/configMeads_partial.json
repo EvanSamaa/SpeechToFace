@@ -1,0 +1,33 @@
+{
+    "data_path": "data",
+    "save_path": "save",
+    "wav_path": "wav", 
+    "result_path": "result",
+
+    "model": "face_diffuser",
+
+    "dataset": "meads",
+    "input_fps": 50,
+    "output_fps": 30,
+    "train_subjects": "M003 M009 W009 W026",
+    "test_subjects": "M003 M009 W009 W026",
+    "val_subjects": "M003 M009 W009 W026",
+    "vertice_dim": 53, 
+
+    "gru_dim": 256,
+    "feature_dim": 256,
+    "gru_layers": 2,
+    "gradient_accumulation_steps": 1,
+    
+    "diff_steps": 1000,
+    "skip_steps": 0,
+    "num_samples": 1,
+
+    "template_file": "templates.pkl",
+    "vertices_path": "vertices_npy",
+    
+    "device": "cuda",
+    "wandb": true,
+    "max_epoch": 200,
+    "lr": 0.0001
+}
